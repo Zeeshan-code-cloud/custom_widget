@@ -1,0 +1,197 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+
+/// **Dependencies (pubspec.yaml):
+///   cached_network_image: ^3.4.1
+
+class SmartCachedImage extends StatelessWidget {
+   final String? imageUrl;
+
+   final Widget errorWidget;
+
+   final double? width;
+
+   final double? height;
+
+   final BoxFit fit;
+
+   final BorderRadius? borderRadius;
+
+   final Color shimmerBaseColor;
+
+   final Color shimmerHighlightColor;
+
+   final Duration shimmerDuration;
+
+   final Color backgroundColor;
+
+  const SmartCachedImage({
+    super.key,
+    required this.imageUrl,
+    required this.errorWidget,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+    this.borderRadius,
+    this.shimmerBaseColor = const Color(0xFFE0E0E0),
+    this.shimmerHighlightColor = const Color(0xFFF5F5F5),
+    this.shimmerDuration = const Duration(milliseconds: 1200),
+    this.backgroundColor = const Color(0xFFF0F0F0),
+  });
+
+ 
+  bool get _hasValidUrl =>
+      imageUrl != null && imageUrl!.trim().isNotEmpty;
+
+  Widget _clip(Widget child) {
+    if (borderRadius == null) return child;
+    return ClipRRect(borderRadius: borderRadius!, child: child);
+  }
+
+  Widget _sized(Widget child) {
+    if (width == null && height == null) return child;
+    return SizedBox(width: width, height: height, child: child);
+  }
+
+ 
+  Widget _shimmer(BuildContext context) {
+    return _ShimmerBox(
+      width: width,
+      height: height,
+      borderRadius: borderRadius,
+      baseColor: shimmerBaseColor,
+      highlightColor: shimmerHighlightColor,
+      duration: shimmerDuration,
+      backgroundColor: backgroundColor,
+    );
+  }
+
+ 
+  Widget _fallback() {
+    return _sized(
+      _clip(
+        Container(
+          width: width,
+          height: height,
+          color: backgroundColor,
+          alignment: Alignment.center,
+          child: errorWidget,
+        ),
+      ),
+    );
+  }
+
+ 
+  @override
+  Widget build(BuildContext context) {
+    if (!_hasValidUrl) return _fallback();
+
+    return _sized(
+      _clip(
+        CachedNetworkImage(
+          imageUrl: imageUrl!,
+          width: width,
+          height: height,
+          fit: fit,
+
+           placeholder: (context, url) => _shimmer(context),
+
+           errorWidget: (context, url, error) => Container(
+            width: width,
+            height: height,
+            color: backgroundColor,
+            alignment: Alignment.center,
+            child: errorWidget,
+          ),
+
+          // ── fade-in when image arrives ──
+          fadeInDuration: const Duration(milliseconds: 300),
+          fadeOutDuration: const Duration(milliseconds: 200),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShimmerBox extends StatefulWidget {
+  final double? width;
+  final double? height;
+  final BorderRadius? borderRadius;
+  final Color baseColor;
+  final Color highlightColor;
+  final Duration duration;
+  final Color backgroundColor;
+
+  const _ShimmerBox({
+    required this.width,
+    required this.height,
+    required this.borderRadius,
+    required this.baseColor,
+    required this.highlightColor,
+    required this.duration,
+    required this.backgroundColor,
+  });
+
+  @override
+  State<_ShimmerBox> createState() => _ShimmerBoxState();
+}
+
+class _ShimmerBoxState extends State<_ShimmerBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: widget.duration)
+      ..repeat();
+    _anim = Tween<double>(begin: -2, end: 2).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOutSine),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget shimmerBox = AnimatedBuilder(
+      animation: _anim,
+      builder: (context, _) {
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            color: widget.baseColor,
+            borderRadius: widget.borderRadius,
+            gradient: LinearGradient(
+              begin: Alignment(_anim.value - 1, 0),
+              end: Alignment(_anim.value, 0),
+              colors: [
+                widget.baseColor,
+                widget.highlightColor,
+                widget.baseColor,
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (widget.borderRadius != null) {
+      shimmerBox =
+          ClipRRect(borderRadius: widget.borderRadius!, child: shimmerBox);
+    }
+
+    return SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: shimmerBox,
+    );
+  }
+}
